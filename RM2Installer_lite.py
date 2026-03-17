@@ -141,13 +141,10 @@ class ProgressWindow:
 # ====================== Engineer Utilities Window ======================
 ENGINEER_PASSWORD = "ThisIsTheWay!"
 
-BRANCH_CONFIG_TEMPLATE = """\
+SINGLE_SITE_CONFIG_TEMPLATE = """\
 <configuration>
   <appSettings>
     <add key="Main.SQLConnectionString" value="Data Source={{SQL_INSTANCE}};Initial Catalog={{DB_NAME}};{{AUTH_STRING}}" />
-    <add key="Main.HeadOfficeIP" value="{{HO_URL}}" />
-    <add key="Main.HeadOfficeUserName" value="" />
-    <add key="Main.HeadOfficePassword" value="" />
 </appSettings>
   <startup useLegacyV2RuntimeActivationPolicy="true">
 <supportedRuntime version="v4.0" sku=".NETFramework,Version=v4.0"/>
@@ -155,7 +152,7 @@ BRANCH_CONFIG_TEMPLATE = """\
 </configuration>
 """
 
-HEADOFFICE_CONFIG_TEMPLATE = """\
+BRANCH_CONFIG_TEMPLATE = """\
 <configuration>
   <appSettings>
     <add key="Main.SQLConnectionString" value="Data Source={{SQL_INSTANCE}};Initial Catalog={{DB_NAME}};{{AUTH_STRING}}" />
@@ -247,32 +244,32 @@ class EngineerUtilitiesWindow:
         self.ent_password.configure(state=state)
 
     # ------------------------------------------------------------------
-    # Section 2 — Branch / Head Office Mode
+    # Section 2 — Single Site / Branch Mode
     # ------------------------------------------------------------------
     def _build_branch_ho_section(self):
         sec = ctk.CTkFrame(self.main_frame, corner_radius=8)
         sec.pack(fill="x", pady=(0, 12))
 
-        ctk.CTkLabel(sec, text="Section 2 — Branch / Head Office Mode", font=("Segoe UI", 13, "bold")).pack(
+        ctk.CTkLabel(sec, text="Section 2 — Single Site / Branch Mode", font=("Segoe UI", 13, "bold")).pack(
             anchor="w", padx=12, pady=(10, 6)
         )
 
         radio_frame = ctk.CTkFrame(sec, fg_color="transparent")
         radio_frame.pack(fill="x", padx=12, pady=(0, 4))
 
-        self.mode_var = StringVar(value="branch")
+        self.mode_var = StringVar(value="singlesite")
+
+        self.rb_singlesite = ctk.CTkRadioButton(
+            radio_frame, text="Single Site", variable=self.mode_var, value="singlesite",
+            command=self._on_mode_change
+        )
+        self.rb_singlesite.pack(side="left", padx=(0, 20))
 
         self.rb_branch = ctk.CTkRadioButton(
             radio_frame, text="Branch", variable=self.mode_var, value="branch",
             command=self._on_mode_change
         )
-        self.rb_branch.pack(side="left", padx=(0, 20))
-
-        self.rb_ho = ctk.CTkRadioButton(
-            radio_frame, text="Head Office", variable=self.mode_var, value="headoffice",
-            command=self._on_mode_change
-        )
-        self.rb_ho.pack(side="left")
+        self.rb_branch.pack(side="left")
 
         # HO URL field
         ho_form = ctk.CTkFrame(sec, fg_color="transparent")
@@ -283,10 +280,16 @@ class EngineerUtilitiesWindow:
         self.ent_ho_url = ctk.CTkEntry(ho_form, placeholder_text="e.g. http://91.246.8.162:8085/Service1.asmx")
         self.ent_ho_url.grid(row=0, column=1, sticky="we", pady=(0, 8))
 
+        self._on_mode_change()
+
     def _on_mode_change(self):
-        # Both modes use the same URL field; keep it always enabled.
-        # Validation (required vs optional) is handled in _generate_config().
-        pass
+        mode = self.mode_var.get()
+        if mode == "branch":
+            self.ent_ho_url.configure(state="normal")
+        else:  # singlesite
+            self.ent_ho_url.configure(state="normal")
+            self.ent_ho_url.delete(0, "end")
+            self.ent_ho_url.configure(state="disabled")
 
     # ------------------------------------------------------------------
     # Section 3 — Preview
@@ -406,21 +409,21 @@ class EngineerUtilitiesWindow:
                 return None
             auth_string = f"User ID={username};Password={password};"
 
-        mode = self.mode_var.get()  # "branch" or "headoffice"
+        mode = self.mode_var.get()  # "singlesite" or "branch"
         ho_url = self.ent_ho_url.get().strip()
 
-        if mode == "headoffice":
+        if mode == "branch":
             if not ho_url:
-                messagebox.showerror("Validation Error", "HeadOffice URL is required.", parent=self.window)
+                messagebox.showerror("Validation Error", "HeadOffice URL is required for Branch mode.", parent=self.window)
                 return None
-            config_str = HEADOFFICE_CONFIG_TEMPLATE
-        else:
             config_str = BRANCH_CONFIG_TEMPLATE
+            config_str = config_str.replace("{{HO_URL}}", ho_url)
+        else:  # singlesite
+            config_str = SINGLE_SITE_CONFIG_TEMPLATE
 
         config_str = config_str.replace("{{SQL_INSTANCE}}", sql_instance)
         config_str = config_str.replace("{{DB_NAME}}", db_name)
         config_str = config_str.replace("{{AUTH_STRING}}", auth_string)
-        config_str = config_str.replace("{{HO_URL}}", ho_url)
 
         return config_str
 
