@@ -141,6 +141,31 @@ class ProgressWindow:
 # ====================== Engineer Utilities Window ======================
 ENGINEER_PASSWORD = "ThisIsTheWay!"
 
+SINGLE_SITE_CONFIG_TEMPLATE = """\
+<configuration>
+  <appSettings>
+    <add key="Main.SQLConnectionString" value="Data Source={{SQL_INSTANCE}};Initial Catalog={{DB_NAME}};{{AUTH_STRING}}" />
+</appSettings>
+  <startup useLegacyV2RuntimeActivationPolicy="true">
+<supportedRuntime version="v4.0" sku=".NETFramework,Version=v4.0"/>
+</startup>
+</configuration>
+"""
+
+BRANCH_CONFIG_TEMPLATE = """\
+<configuration>
+  <appSettings>
+    <add key="Main.SQLConnectionString" value="Data Source={{SQL_INSTANCE}};Initial Catalog={{DB_NAME}};{{AUTH_STRING}}" />
+    <add key="Main.HeadOfficeIP" value="{{HO_URL}}" />
+    <add key="Main.HeadOfficeUserName" value="" />
+    <add key="Main.HeadOfficePassword" value="" />
+</appSettings>
+  <startup useLegacyV2RuntimeActivationPolicy="true">
+<supportedRuntime version="v4.0" sku=".NETFramework,Version=v4.0"/>
+</startup>
+</configuration>
+"""
+
 
 class EngineerUtilitiesWindow:
     """
@@ -189,7 +214,7 @@ class EngineerUtilitiesWindow:
 
         # Database Name
         ctk.CTkLabel(form, text="Database Name:").grid(row=1, column=0, sticky="w", padx=(0, 10), pady=(0, 8))
-        self.ent_db_name = ctk.CTkEntry(form, placeholder_text="e.g. lo01ho")
+        self.ent_db_name = ctk.CTkEntry(form, placeholder_text="e.g. ITSDrystock")
         self.ent_db_name.grid(row=1, column=1, sticky="we", pady=(0, 8))
 
         # Windows Auth checkbox
@@ -219,53 +244,52 @@ class EngineerUtilitiesWindow:
         self.ent_password.configure(state=state)
 
     # ------------------------------------------------------------------
-    # Section 2 — Branch / Head Office Mode
+    # Section 2 — Single Site / Branch Mode
     # ------------------------------------------------------------------
     def _build_branch_ho_section(self):
         sec = ctk.CTkFrame(self.main_frame, corner_radius=8)
         sec.pack(fill="x", pady=(0, 12))
 
-        ctk.CTkLabel(sec, text="Section 2 — Branch / Head Office Mode", font=("Segoe UI", 13, "bold")).pack(
+        ctk.CTkLabel(sec, text="Section 2 — Single Site / Branch Mode", font=("Segoe UI", 13, "bold")).pack(
             anchor="w", padx=12, pady=(10, 6)
         )
 
         radio_frame = ctk.CTkFrame(sec, fg_color="transparent")
         radio_frame.pack(fill="x", padx=12, pady=(0, 4))
 
-        self.mode_var = StringVar(value="branch")
+        self.mode_var = StringVar(value="singlesite")
+
+        self.rb_singlesite = ctk.CTkRadioButton(
+            radio_frame, text="Single Site", variable=self.mode_var, value="singlesite",
+            command=self._on_mode_change
+        )
+        self.rb_singlesite.pack(side="left", padx=(0, 20))
 
         self.rb_branch = ctk.CTkRadioButton(
             radio_frame, text="Branch", variable=self.mode_var, value="branch",
             command=self._on_mode_change
         )
-        self.rb_branch.pack(side="left", padx=(0, 20))
+        self.rb_branch.pack(side="left")
 
-        self.rb_ho = ctk.CTkRadioButton(
-            radio_frame, text="Head Office", variable=self.mode_var, value="headoffice",
-            command=self._on_mode_change
-        )
-        self.rb_ho.pack(side="left")
-
-        # HO IP / Port fields (shown but disabled by default)
+        # HO URL field
         ho_form = ctk.CTkFrame(sec, fg_color="transparent")
         ho_form.pack(fill="x", padx=12, pady=(4, 12))
         ho_form.grid_columnconfigure(1, weight=1)
 
         ctk.CTkLabel(ho_form, text="HeadOffice IP:").grid(row=0, column=0, sticky="w", padx=(0, 10), pady=(0, 8))
-        self.ent_ho_ip = ctk.CTkEntry(ho_form, placeholder_text="e.g. 192.168.1.1")
-        self.ent_ho_ip.grid(row=0, column=1, sticky="we", pady=(0, 8))
+        self.ent_ho_url = ctk.CTkEntry(ho_form, placeholder_text="e.g. http://91.246.8.162:8085/Service1.asmx")
+        self.ent_ho_url.grid(row=0, column=1, sticky="we", pady=(0, 8))
 
-        ctk.CTkLabel(ho_form, text="HeadOffice Port:").grid(row=1, column=0, sticky="w", padx=(0, 10), pady=(0, 8))
-        self.ent_ho_port = ctk.CTkEntry(ho_form, placeholder_text="e.g. 8080")
-        self.ent_ho_port.grid(row=1, column=1, sticky="we", pady=(0, 8))
-
-        # Default: Branch mode → HO fields disabled
         self._on_mode_change()
 
     def _on_mode_change(self):
-        state = "normal" if self.mode_var.get() == "headoffice" else "disabled"
-        self.ent_ho_ip.configure(state=state)
-        self.ent_ho_port.configure(state=state)
+        mode = self.mode_var.get()
+        if mode == "branch":
+            self.ent_ho_url.configure(state="normal")
+        else:  # singlesite
+            self.ent_ho_url.configure(state="normal")
+            self.ent_ho_url.delete(0, "end")
+            self.ent_ho_url.configure(state="disabled")
 
     # ------------------------------------------------------------------
     # Section 3 — Preview
@@ -385,35 +409,21 @@ class EngineerUtilitiesWindow:
                 return None
             auth_string = f"User ID={username};Password={password};"
 
-        mode = self.mode_var.get()  # "branch" or "headoffice"
+        mode = self.mode_var.get()  # "singlesite" or "branch"
+        ho_url = self.ent_ho_url.get().strip()
 
-        if mode == "headoffice":
-            ho_ip = self.ent_ho_ip.get().strip()
-            ho_port = self.ent_ho_port.get().strip()
-            if not ho_ip:
-                messagebox.showerror("Validation Error", "HeadOffice IP is required.", parent=self.window)
+        if mode == "branch":
+            if not ho_url:
+                messagebox.showerror("Validation Error", "HeadOffice URL is required for Branch mode.", parent=self.window)
                 return None
-            if not ho_port:
-                messagebox.showerror("Validation Error", "HeadOffice Port is required.", parent=self.window)
-                return None
-            template_file = get_resource_path(os.path.join("templates", "DryStockView.headoffice.config"))
-        else:
-            template_file = get_resource_path(os.path.join("templates", "DryStockView.branch.config"))
-
-        try:
-            with open(template_file, "r", encoding="utf-8") as f:
-                config_str = f.read()
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to read template:\n{e}", parent=self.window)
-            return None
+            config_str = BRANCH_CONFIG_TEMPLATE
+            config_str = config_str.replace("{{HO_URL}}", ho_url)
+        else:  # singlesite
+            config_str = SINGLE_SITE_CONFIG_TEMPLATE
 
         config_str = config_str.replace("{{SQL_INSTANCE}}", sql_instance)
         config_str = config_str.replace("{{DB_NAME}}", db_name)
         config_str = config_str.replace("{{AUTH_STRING}}", auth_string)
-
-        if mode == "headoffice":
-            config_str = config_str.replace("{{HO_IP}}", ho_ip)
-            config_str = config_str.replace("{{HO_PORT}}", ho_port)
 
         return config_str
 
