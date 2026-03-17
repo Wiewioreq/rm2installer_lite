@@ -145,6 +145,9 @@ BRANCH_CONFIG_TEMPLATE = """\
 <configuration>
   <appSettings>
     <add key="Main.SQLConnectionString" value="Data Source={{SQL_INSTANCE}};Initial Catalog={{DB_NAME}};{{AUTH_STRING}}" />
+    <add key="Main.HeadOfficeIP" value="{{HO_URL}}" />
+    <add key="Main.HeadOfficeUserName" value="" />
+    <add key="Main.HeadOfficePassword" value="" />
 </appSettings>
   <startup useLegacyV2RuntimeActivationPolicy="true">
 <supportedRuntime version="v4.0" sku=".NETFramework,Version=v4.0"/>
@@ -156,8 +159,9 @@ HEADOFFICE_CONFIG_TEMPLATE = """\
 <configuration>
   <appSettings>
     <add key="Main.SQLConnectionString" value="Data Source={{SQL_INSTANCE}};Initial Catalog={{DB_NAME}};{{AUTH_STRING}}" />
-    <add key="HeadOffice.IP" value="{{HO_IP}}" />
-    <add key="HeadOffice.Port" value="{{HO_PORT}}" />
+    <add key="Main.HeadOfficeIP" value="{{HO_URL}}" />
+    <add key="Main.HeadOfficeUserName" value="" />
+    <add key="Main.HeadOfficePassword" value="" />
 </appSettings>
   <startup useLegacyV2RuntimeActivationPolicy="true">
 <supportedRuntime version="v4.0" sku=".NETFramework,Version=v4.0"/>
@@ -270,26 +274,19 @@ class EngineerUtilitiesWindow:
         )
         self.rb_ho.pack(side="left")
 
-        # HO IP / Port fields (shown but disabled by default)
+        # HO URL field
         ho_form = ctk.CTkFrame(sec, fg_color="transparent")
         ho_form.pack(fill="x", padx=12, pady=(4, 12))
         ho_form.grid_columnconfigure(1, weight=1)
 
-        ctk.CTkLabel(ho_form, text="HeadOffice IP:").grid(row=0, column=0, sticky="w", padx=(0, 10), pady=(0, 8))
-        self.ent_ho_ip = ctk.CTkEntry(ho_form, placeholder_text="e.g. 192.168.1.1")
-        self.ent_ho_ip.grid(row=0, column=1, sticky="we", pady=(0, 8))
-
-        ctk.CTkLabel(ho_form, text="HeadOffice Port:").grid(row=1, column=0, sticky="w", padx=(0, 10), pady=(0, 8))
-        self.ent_ho_port = ctk.CTkEntry(ho_form, placeholder_text="e.g. 8080")
-        self.ent_ho_port.grid(row=1, column=1, sticky="we", pady=(0, 8))
-
-        # Default: Branch mode → HO fields disabled
-        self._on_mode_change()
+        ctk.CTkLabel(ho_form, text="HeadOffice URL:").grid(row=0, column=0, sticky="w", padx=(0, 10), pady=(0, 8))
+        self.ent_ho_url = ctk.CTkEntry(ho_form, placeholder_text="e.g. http://91.246.8.162:8085/Service1.asmx")
+        self.ent_ho_url.grid(row=0, column=1, sticky="we", pady=(0, 8))
 
     def _on_mode_change(self):
-        state = "normal" if self.mode_var.get() == "headoffice" else "disabled"
-        self.ent_ho_ip.configure(state=state)
-        self.ent_ho_port.configure(state=state)
+        # Both modes use the same URL field; keep it always enabled.
+        # Validation (required vs optional) is handled in _generate_config().
+        pass
 
     # ------------------------------------------------------------------
     # Section 3 — Preview
@@ -410,15 +407,11 @@ class EngineerUtilitiesWindow:
             auth_string = f"User ID={username};Password={password};"
 
         mode = self.mode_var.get()  # "branch" or "headoffice"
+        ho_url = self.ent_ho_url.get().strip()
 
         if mode == "headoffice":
-            ho_ip = self.ent_ho_ip.get().strip()
-            ho_port = self.ent_ho_port.get().strip()
-            if not ho_ip:
-                messagebox.showerror("Validation Error", "HeadOffice IP is required.", parent=self.window)
-                return None
-            if not ho_port:
-                messagebox.showerror("Validation Error", "HeadOffice Port is required.", parent=self.window)
+            if not ho_url:
+                messagebox.showerror("Validation Error", "HeadOffice URL is required.", parent=self.window)
                 return None
             config_str = HEADOFFICE_CONFIG_TEMPLATE
         else:
@@ -427,10 +420,7 @@ class EngineerUtilitiesWindow:
         config_str = config_str.replace("{{SQL_INSTANCE}}", sql_instance)
         config_str = config_str.replace("{{DB_NAME}}", db_name)
         config_str = config_str.replace("{{AUTH_STRING}}", auth_string)
-
-        if mode == "headoffice":
-            config_str = config_str.replace("{{HO_IP}}", ho_ip)
-            config_str = config_str.replace("{{HO_PORT}}", ho_port)
+        config_str = config_str.replace("{{HO_URL}}", ho_url)
 
         return config_str
 
