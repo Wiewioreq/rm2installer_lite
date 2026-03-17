@@ -141,6 +141,30 @@ class ProgressWindow:
 # ====================== Engineer Utilities Window ======================
 ENGINEER_PASSWORD = "ThisIsTheWay!"
 
+BRANCH_CONFIG_TEMPLATE = """\
+<configuration>
+  <appSettings>
+    <add key="Main.SQLConnectionString" value="Data Source={{SQL_INSTANCE}};Initial Catalog={{DB_NAME}};{{AUTH_STRING}}" />
+</appSettings>
+  <startup useLegacyV2RuntimeActivationPolicy="true">
+<supportedRuntime version="v4.0" sku=".NETFramework,Version=v4.0"/>
+</startup>
+</configuration>
+"""
+
+HEADOFFICE_CONFIG_TEMPLATE = """\
+<configuration>
+  <appSettings>
+    <add key="Main.SQLConnectionString" value="Data Source={{SQL_INSTANCE}};Initial Catalog={{DB_NAME}};{{AUTH_STRING}}" />
+    <add key="HeadOffice.IP" value="{{HO_IP}}" />
+    <add key="HeadOffice.Port" value="{{HO_PORT}}" />
+</appSettings>
+  <startup useLegacyV2RuntimeActivationPolicy="true">
+<supportedRuntime version="v4.0" sku=".NETFramework,Version=v4.0"/>
+</startup>
+</configuration>
+"""
+
 
 class EngineerUtilitiesWindow:
     """
@@ -396,16 +420,9 @@ class EngineerUtilitiesWindow:
             if not ho_port:
                 messagebox.showerror("Validation Error", "HeadOffice Port is required.", parent=self.window)
                 return None
-            template_file = get_resource_path(os.path.join("templates", "DryStockView.headoffice.config"))
+            config_str = HEADOFFICE_CONFIG_TEMPLATE
         else:
-            template_file = get_resource_path(os.path.join("templates", "DryStockView.branch.config"))
-
-        try:
-            with open(template_file, "r", encoding="utf-8") as f:
-                config_str = f.read()
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to read template:\n{e}", parent=self.window)
-            return None
+            config_str = BRANCH_CONFIG_TEMPLATE
 
         config_str = config_str.replace("{{SQL_INSTANCE}}", sql_instance)
         config_str = config_str.replace("{{DB_NAME}}", db_name)
