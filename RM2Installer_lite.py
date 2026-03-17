@@ -138,6 +138,360 @@ class ProgressWindow:
             pass
 
 
+# ====================== Engineer Utilities Window ======================
+ENGINEER_PASSWORD = "ThisIsTheWay!"
+
+
+class EngineerUtilitiesWindow:
+    """
+    Modal window with advanced config management tools.
+    Password-protected — open only after successful authentication.
+    """
+
+    def __init__(self, parent):
+        self.parent = parent
+        self.window = ctk.CTkToplevel(parent)
+        self.window.title("🔧 Engineer Utilities")
+        self.window.geometry("900x700")
+        self.window.transient(parent)
+        self.window.grab_set()
+        self.window.geometry("+%d+%d" % (parent.winfo_rootx() + 30, parent.winfo_rooty() + 30))
+        self.window.resizable(True, True)
+
+        # ---- scrollable main container ----
+        self.main_frame = ctk.CTkScrollableFrame(self.window)
+        self.main_frame.pack(fill="both", expand=True, padx=16, pady=16)
+
+        self._build_sql_section()
+        self._build_branch_ho_section()
+        self._build_preview_section()
+        self._build_deploy_section()
+
+    # ------------------------------------------------------------------
+    # Section 1 — SQL Config
+    # ------------------------------------------------------------------
+    def _build_sql_section(self):
+        sec = ctk.CTkFrame(self.main_frame, corner_radius=8)
+        sec.pack(fill="x", pady=(0, 12))
+
+        ctk.CTkLabel(sec, text="Section 1 — SQL Config", font=("Segoe UI", 13, "bold")).pack(
+            anchor="w", padx=12, pady=(10, 6)
+        )
+
+        form = ctk.CTkFrame(sec, fg_color="transparent")
+        form.pack(fill="x", padx=12, pady=(0, 12))
+        form.grid_columnconfigure(1, weight=1)
+
+        # SQL Instance
+        ctk.CTkLabel(form, text="SQL Instance:").grid(row=0, column=0, sticky="w", padx=(0, 10), pady=(0, 8))
+        self.ent_sql_instance = ctk.CTkEntry(form, placeholder_text="e.g. .\\SQLEXPRESS01")
+        self.ent_sql_instance.grid(row=0, column=1, sticky="we", pady=(0, 8))
+
+        # Database Name
+        ctk.CTkLabel(form, text="Database Name:").grid(row=1, column=0, sticky="w", padx=(0, 10), pady=(0, 8))
+        self.ent_db_name = ctk.CTkEntry(form, placeholder_text="e.g. lo01ho")
+        self.ent_db_name.grid(row=1, column=1, sticky="we", pady=(0, 8))
+
+        # Windows Auth checkbox
+        self.win_auth_var = ctk.BooleanVar(value=True)
+        self.chk_win_auth = ctk.CTkCheckBox(
+            form, text="Windows Auth (Integrated Security)",
+            variable=self.win_auth_var, command=self._on_win_auth_toggle
+        )
+        self.chk_win_auth.grid(row=2, column=0, columnspan=2, sticky="w", pady=(0, 8))
+
+        # Username
+        ctk.CTkLabel(form, text="Username:").grid(row=3, column=0, sticky="w", padx=(0, 10), pady=(0, 8))
+        self.ent_username = ctk.CTkEntry(form, placeholder_text="SQL username")
+        self.ent_username.grid(row=3, column=1, sticky="we", pady=(0, 8))
+
+        # Password
+        ctk.CTkLabel(form, text="Password:").grid(row=4, column=0, sticky="w", padx=(0, 10), pady=(0, 8))
+        self.ent_password = ctk.CTkEntry(form, placeholder_text="SQL password", show="*")
+        self.ent_password.grid(row=4, column=1, sticky="we", pady=(0, 8))
+
+        # Start with Windows Auth enabled → disable Username/Password
+        self._on_win_auth_toggle()
+
+    def _on_win_auth_toggle(self):
+        state = "disabled" if self.win_auth_var.get() else "normal"
+        self.ent_username.configure(state=state)
+        self.ent_password.configure(state=state)
+
+    # ------------------------------------------------------------------
+    # Section 2 — Branch / Head Office Mode
+    # ------------------------------------------------------------------
+    def _build_branch_ho_section(self):
+        sec = ctk.CTkFrame(self.main_frame, corner_radius=8)
+        sec.pack(fill="x", pady=(0, 12))
+
+        ctk.CTkLabel(sec, text="Section 2 — Branch / Head Office Mode", font=("Segoe UI", 13, "bold")).pack(
+            anchor="w", padx=12, pady=(10, 6)
+        )
+
+        radio_frame = ctk.CTkFrame(sec, fg_color="transparent")
+        radio_frame.pack(fill="x", padx=12, pady=(0, 4))
+
+        self.mode_var = StringVar(value="branch")
+
+        self.rb_branch = ctk.CTkRadioButton(
+            radio_frame, text="Branch", variable=self.mode_var, value="branch",
+            command=self._on_mode_change
+        )
+        self.rb_branch.pack(side="left", padx=(0, 20))
+
+        self.rb_ho = ctk.CTkRadioButton(
+            radio_frame, text="Head Office", variable=self.mode_var, value="headoffice",
+            command=self._on_mode_change
+        )
+        self.rb_ho.pack(side="left")
+
+        # HO IP / Port fields (shown but disabled by default)
+        ho_form = ctk.CTkFrame(sec, fg_color="transparent")
+        ho_form.pack(fill="x", padx=12, pady=(4, 12))
+        ho_form.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(ho_form, text="HeadOffice IP:").grid(row=0, column=0, sticky="w", padx=(0, 10), pady=(0, 8))
+        self.ent_ho_ip = ctk.CTkEntry(ho_form, placeholder_text="e.g. 192.168.1.1")
+        self.ent_ho_ip.grid(row=0, column=1, sticky="we", pady=(0, 8))
+
+        ctk.CTkLabel(ho_form, text="HeadOffice Port:").grid(row=1, column=0, sticky="w", padx=(0, 10), pady=(0, 8))
+        self.ent_ho_port = ctk.CTkEntry(ho_form, placeholder_text="e.g. 8080")
+        self.ent_ho_port.grid(row=1, column=1, sticky="we", pady=(0, 8))
+
+        # Default: Branch mode → HO fields disabled
+        self._on_mode_change()
+
+    def _on_mode_change(self):
+        state = "normal" if self.mode_var.get() == "headoffice" else "disabled"
+        self.ent_ho_ip.configure(state=state)
+        self.ent_ho_port.configure(state=state)
+
+    # ------------------------------------------------------------------
+    # Section 3 — Preview
+    # ------------------------------------------------------------------
+    def _build_preview_section(self):
+        sec = ctk.CTkFrame(self.main_frame, corner_radius=8)
+        sec.pack(fill="x", pady=(0, 12))
+
+        ctk.CTkLabel(sec, text="Section 3 — Preview", font=("Segoe UI", 13, "bold")).pack(
+            anchor="w", padx=12, pady=(10, 6)
+        )
+
+        btn_preview = ctk.CTkButton(
+            sec, text="🔍  Preview Final Config",
+            fg_color="#607D8B", hover_color="#455A64",
+            command=self._do_preview
+        )
+        btn_preview.pack(anchor="w", padx=12, pady=(0, 8))
+
+        self.preview_textbox = ctk.CTkTextbox(sec, height=180, state="disabled")
+        self.preview_textbox.pack(fill="x", padx=12, pady=(0, 12))
+
+    def _do_preview(self):
+        config_str = self._generate_config()
+        if config_str is None:
+            return
+        self.preview_textbox.configure(state="normal")
+        self.preview_textbox.delete("1.0", "end")
+        self.preview_textbox.insert("end", config_str)
+        self.preview_textbox.configure(state="disabled")
+
+    # ------------------------------------------------------------------
+    # Section 4 — Deploy
+    # ------------------------------------------------------------------
+    def _build_deploy_section(self):
+        sec = ctk.CTkFrame(self.main_frame, corner_radius=8)
+        sec.pack(fill="x", pady=(0, 12))
+
+        ctk.CTkLabel(sec, text="Section 4 — Deploy", font=("Segoe UI", 13, "bold")).pack(
+            anchor="w", padx=12, pady=(10, 6)
+        )
+
+        btn_deploy = ctk.CTkButton(
+            sec, text="💾  Write Config to RM2 Folder",
+            fg_color="#607D8B", hover_color="#455A64",
+            command=self._do_deploy
+        )
+        btn_deploy.pack(anchor="w", padx=12, pady=(0, 12))
+
+    def _do_deploy(self):
+        config_str = self._generate_config()
+        if config_str is None:
+            return
+
+        target_folder = filedialog.askdirectory(title="Select RM2 Target Folder")
+        if not target_folder:
+            messagebox.showerror("Error", "No folder selected.", parent=self.window)
+            return
+
+        config_path = os.path.join(target_folder, "DryStockView.exe.config")
+
+        # Backup existing config
+        if os.path.exists(config_path):
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_path = config_path + f".bak_{ts}"
+            try:
+                shutil.copy2(config_path, backup_path)
+                log_action(f"[Engineer] Backup created: {backup_path}")
+            except Exception as e:
+                log_action(f"[Engineer] Backup failed: {e}")
+                messagebox.showerror("Error", f"Failed to create backup:\n{e}", parent=self.window)
+                return
+
+        # Write new config
+        try:
+            with open(config_path, "w", encoding="utf-8") as f:
+                f.write(config_str)
+            log_action(f"[Engineer] Config written to: {config_path}")
+            messagebox.showinfo("Success", f"Config written successfully to:\n{config_path}", parent=self.window)
+        except Exception as e:
+            log_action(f"[Engineer] Failed to write config: {e}")
+            messagebox.showerror("Error", f"Failed to write config:\n{e}", parent=self.window)
+
+    # ------------------------------------------------------------------
+    # Config generation (template-based, no XML parsing)
+    # ------------------------------------------------------------------
+    def _generate_config(self):
+        """
+        Reads the appropriate template and replaces placeholders.
+        Returns the final config string, or None on validation error.
+        """
+        sql_instance = self.ent_sql_instance.get().strip()
+        db_name = self.ent_db_name.get().strip()
+
+        # Validate SQL Instance
+        ok, err = InputValidator.validate_server_name(sql_instance)
+        if not ok:
+            messagebox.showerror("Validation Error", f"SQL Instance: {err}", parent=self.window)
+            return None
+
+        # Validate Database Name
+        ok, err = InputValidator.validate_database_name(db_name)
+        if not ok:
+            messagebox.showerror("Validation Error", f"Database Name: {err}", parent=self.window)
+            return None
+
+        use_windows_auth = self.win_auth_var.get()
+
+        if use_windows_auth:
+            auth_string = "Integrated Security=True;"
+        else:
+            username = self.ent_username.get().strip()
+            password = self.ent_password.get().strip()
+            ok, err = InputValidator.validate_credentials(username, password, False)
+            if not ok:
+                messagebox.showerror("Validation Error", err, parent=self.window)
+                return None
+            auth_string = f"User ID={username};Password={password};"
+
+        mode = self.mode_var.get()  # "branch" or "headoffice"
+
+        if mode == "headoffice":
+            ho_ip = self.ent_ho_ip.get().strip()
+            ho_port = self.ent_ho_port.get().strip()
+            if not ho_ip:
+                messagebox.showerror("Validation Error", "HeadOffice IP is required.", parent=self.window)
+                return None
+            if not ho_port:
+                messagebox.showerror("Validation Error", "HeadOffice Port is required.", parent=self.window)
+                return None
+            template_file = get_resource_path(os.path.join("templates", "DryStockView.headoffice.config"))
+        else:
+            template_file = get_resource_path(os.path.join("templates", "DryStockView.branch.config"))
+
+        try:
+            with open(template_file, "r", encoding="utf-8") as f:
+                config_str = f.read()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to read template:\n{e}", parent=self.window)
+            return None
+
+        config_str = config_str.replace("{{SQL_INSTANCE}}", sql_instance)
+        config_str = config_str.replace("{{DB_NAME}}", db_name)
+        config_str = config_str.replace("{{AUTH_STRING}}", auth_string)
+
+        if mode == "headoffice":
+            config_str = config_str.replace("{{HO_IP}}", ho_ip)
+            config_str = config_str.replace("{{HO_PORT}}", ho_port)
+
+        return config_str
+
+
+_ENGINEER_ATTEMPTS = 0
+_ENGINEER_MAX_ATTEMPTS = 5
+
+
+def open_engineer_utilities(parent):
+    """
+    Shows a password dialog. If the password matches, opens EngineerUtilitiesWindow.
+    Locks out after 5 consecutive failed attempts.
+    """
+    global _ENGINEER_ATTEMPTS
+
+    if _ENGINEER_ATTEMPTS >= _ENGINEER_MAX_ATTEMPTS:
+        messagebox.showerror(
+            "Access Locked",
+            "Too many failed attempts. Restart the application to try again.",
+            parent=parent,
+        )
+        log_action("[Engineer] Access locked — too many failed attempts.")
+        return
+
+    pwd_win = ctk.CTkToplevel(parent)
+    pwd_win.title("Engineer Access")
+    pwd_win.geometry("360x160")
+    pwd_win.transient(parent)
+    pwd_win.grab_set()
+    pwd_win.geometry("+%d+%d" % (parent.winfo_rootx() + 120, parent.winfo_rooty() + 120))
+    pwd_win.resizable(False, False)
+
+    frame = ctk.CTkFrame(pwd_win, corner_radius=10)
+    frame.pack(fill="both", expand=True, padx=16, pady=16)
+
+    ctk.CTkLabel(frame, text="Enter Engineer Password:", font=("Segoe UI", 13)).pack(pady=(0, 8))
+
+    ent_pwd = ctk.CTkEntry(frame, show="*", width=260, placeholder_text="Password")
+    ent_pwd.pack(pady=(0, 12))
+    ent_pwd.focus()
+
+    def _check():
+        global _ENGINEER_ATTEMPTS
+        entered = ent_pwd.get()
+        if entered == ENGINEER_PASSWORD:
+            _ENGINEER_ATTEMPTS = 0
+            log_action("[Engineer] Engineer Utilities accessed successfully.")
+            pwd_win.destroy()
+            EngineerUtilitiesWindow(parent)
+        else:
+            _ENGINEER_ATTEMPTS += 1
+            remaining = _ENGINEER_MAX_ATTEMPTS - _ENGINEER_ATTEMPTS
+            log_action(
+                f"[Engineer] Failed access attempt ({_ENGINEER_ATTEMPTS}/{_ENGINEER_MAX_ATTEMPTS})."
+            )
+            if remaining > 0:
+                messagebox.showerror(
+                    "Access Denied",
+                    f"Incorrect password. {remaining} attempt(s) remaining.",
+                    parent=pwd_win,
+                )
+                ent_pwd.delete(0, "end")
+            else:
+                messagebox.showerror(
+                    "Access Locked",
+                    "Too many failed attempts. Restart the application to try again.",
+                    parent=pwd_win,
+                )
+                log_action("[Engineer] Access locked — too many failed attempts.")
+                pwd_win.destroy()
+
+    btn_ok = ctk.CTkButton(frame, text="OK", command=_check, width=120)
+    btn_ok.pack()
+
+    # Allow pressing Enter to confirm
+    ent_pwd.bind("<Return>", lambda e: _check())
+
+
 # ============================== Narzędzia ==============================
 def get_base_dir():
     """
@@ -782,16 +1136,20 @@ def main():
             set_status("Connection FAILED", "#F44336")  # red
 
     # przyciski z piktogramami
-    btn_run   = ctk.CTkButton(buttons_frame, text="▶️  Run Update Process", command=execute_all_threaded)
-    btn_test  = ctk.CTkButton(buttons_frame, text="🔎  Test Connection",    command=test_connection)
-    btn_slave = ctk.CTkButton(buttons_frame, text="📦  Slave",              command=install_to_slave,
-                              fg_color="#FF9800", hover_color="#d17f00")
+    btn_run      = ctk.CTkButton(buttons_frame, text="▶️  Run Update Process", command=execute_all_threaded)
+    btn_test     = ctk.CTkButton(buttons_frame, text="🔎  Test Connection",    command=test_connection)
+    btn_slave    = ctk.CTkButton(buttons_frame, text="📦  Slave",              command=install_to_slave,
+                                 fg_color="#FF9800", hover_color="#d17f00")
+    btn_engineer = ctk.CTkButton(buttons_frame, text="🔧  Engineer Utilities",
+                                 command=lambda: open_engineer_utilities(root),
+                                 fg_color="#607D8B", hover_color="#455A64")
 
     btn_run.pack(side="left", expand=True, fill="x", padx=(0, 8))
     btn_test.pack(side="left", padx=8)
     btn_slave.pack(side="right", padx=(8, 0))
+    btn_engineer.pack(side="right", padx=(8, 0))
 
-    buttons.update({"run": btn_run, "test": btn_test, "slave": btn_slave})
+    buttons.update({"run": btn_run, "test": btn_test, "slave": btn_slave, "engineer": btn_engineer})
 
     # info
     info_label = ctk.CTkLabel(
